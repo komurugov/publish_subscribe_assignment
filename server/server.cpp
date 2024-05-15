@@ -1,13 +1,3 @@
-//
-// chat_server.cpp
-// ~~~~~~~~~~~~~~~
-//
-// Copyright (c) 2003-2024 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -22,37 +12,37 @@ using asio::ip::tcp;
 
 //----------------------------------------------------------------------
 
-typedef std::deque<chat_message> chat_message_queue;
+typedef std::deque<message> message_queue;
 
 //----------------------------------------------------------------------
 
-class chat_participant
+class participant
 {
 public:
-  virtual ~chat_participant() {}
-  virtual void deliver(const chat_message& msg) = 0;
+  virtual ~participant() {}
+  virtual void deliver(const message& msg) = 0;
 };
 
-typedef std::shared_ptr<chat_participant> chat_participant_ptr;
+typedef std::shared_ptr<participant> participant_ptr;
 
 //----------------------------------------------------------------------
 
-class chat_room
+class room
 {
 public:
-  void join(chat_participant_ptr participant)
+  void join(participant_ptr participant)
   {
     participants_.insert(participant);
     for (auto msg: recent_msgs_)
       participant->deliver(msg);
   }
 
-  void leave(chat_participant_ptr participant)
+  void leave(participant_ptr participant)
   {
     participants_.erase(participant);
   }
 
-  void deliver(const chat_message& msg)
+  void deliver(const message& msg)
   {
     recent_msgs_.push_back(msg);
     while (recent_msgs_.size() > max_recent_msgs)
@@ -63,19 +53,19 @@ public:
   }
 
 private:
-  std::set<chat_participant_ptr> participants_;
+  std::set<participant_ptr> participants_;
   enum { max_recent_msgs = 100 };
-  chat_message_queue recent_msgs_;
+  message_queue recent_msgs_;
 };
 
 //----------------------------------------------------------------------
 
-class chat_session
-  : public chat_participant,
-    public std::enable_shared_from_this<chat_session>
+class session
+  : public participant,
+    public std::enable_shared_from_this<session>
 {
 public:
-  chat_session(tcp::socket socket, chat_room& room)
+  session(tcp::socket socket, room& room)
     : socket_(std::move(socket)),
       room_(room)
   {
@@ -87,7 +77,7 @@ public:
     do_read_header();
   }
 
-  void deliver(const chat_message& msg)
+  void deliver(const message& msg)
   {
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
@@ -102,7 +92,7 @@ private:
   {
     auto self(shared_from_this());
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), chat_message::header_length),
+        asio::buffer(read_msg_.data(), message::header_length),
         [this, self](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec && read_msg_.decode_header())
@@ -159,17 +149,17 @@ private:
   }
 
   tcp::socket socket_;
-  chat_room& room_;
-  chat_message read_msg_;
-  chat_message_queue write_msgs_;
+  room& room_;
+  message read_msg_;
+  message_queue write_msgs_;
 };
 
 //----------------------------------------------------------------------
 
-class chat_server
+class server
 {
 public:
-  chat_server(asio::io_context& io_context,
+  server(asio::io_context& io_context,
       const tcp::endpoint& endpoint)
     : acceptor_(io_context, endpoint)
   {
@@ -184,7 +174,7 @@ private:
         {
           if (!ec)
           {
-            std::make_shared<chat_session>(std::move(socket), room_)->start();
+            std::make_shared<session>(std::move(socket), room_)->start();
           }
 
           do_accept();
@@ -192,7 +182,7 @@ private:
   }
 
   tcp::acceptor acceptor_;
-  chat_room room_;
+  room room_;
 };
 
 //----------------------------------------------------------------------
@@ -203,13 +193,13 @@ int main(int argc, char* argv[])
   {
     if (argc < 2)
     {
-      std::cerr << "Usage: chat_server <port> [<port> ...]\n";
+      std::cerr << "Usage: server <port> [<port> ...]\n";
       return 1;
     }
 
     asio::io_context io_context;
 
-    std::list<chat_server> servers;
+    std::list<server> servers;
     for (int i = 1; i < argc; ++i)
     {
       tcp::endpoint endpoint(tcp::v4(), std::atoi(argv[i]));

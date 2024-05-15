@@ -1,13 +1,3 @@
-//
-// chat_client.cpp
-// ~~~~~~~~~~~~~~~
-//
-// Copyright (c) 2003-2024 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -17,12 +7,12 @@
 
 using asio::ip::tcp;
 
-typedef std::deque<chat_message> chat_message_queue;
+typedef std::deque<message> message_queue;
 
-class chat_client
+class client
 {
 public:
-  chat_client(asio::io_context& io_context,
+  client(asio::io_context& io_context,
       const tcp::resolver::results_type& endpoints)
     : io_context_(io_context),
       socket_(io_context)
@@ -30,7 +20,7 @@ public:
     do_connect(endpoints);
   }
 
-  void write(const chat_message& msg)
+  void write(const message& msg)
   {
     asio::post(io_context_,
         [this, msg]()
@@ -65,7 +55,7 @@ private:
   void do_read_header()
   {
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), chat_message::header_length),
+        asio::buffer(read_msg_.data(), message::header_length),
         [this](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec && read_msg_.decode_header())
@@ -123,8 +113,8 @@ private:
 private:
   asio::io_context& io_context_;
   tcp::socket socket_;
-  chat_message read_msg_;
-  chat_message_queue write_msgs_;
+  message read_msg_;
+  message_queue write_msgs_;
 };
 
 int main(int argc, char* argv[])
@@ -133,7 +123,7 @@ int main(int argc, char* argv[])
   {
     if (argc != 3)
     {
-      std::cerr << "Usage: chat_client <host> <port>\n";
+      std::cerr << "Usage: client <host> <port>\n";
       return 1;
     }
 
@@ -141,14 +131,14 @@ int main(int argc, char* argv[])
 
     tcp::resolver resolver(io_context);
     auto endpoints = resolver.resolve(argv[1], argv[2]);
-    chat_client c(io_context, endpoints);
+    client c(io_context, endpoints);
 
     std::thread t([&io_context](){ io_context.run(); });
 
-    char line[chat_message::max_body_length + 1];
-    while (std::cin.getline(line, chat_message::max_body_length + 1))
+    char line[message::max_body_length + 1];
+    while (std::cin.getline(line, message::max_body_length + 1))
     {
-      chat_message msg;
+      message msg;
       msg.body_length(std::strlen(line));
       std::memcpy(msg.body(), line, msg.body_length());
       msg.encode_header();

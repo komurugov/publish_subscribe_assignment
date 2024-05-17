@@ -40,6 +40,7 @@ public:
   void leave(participant_ptr participant)
   {
     participants_.erase(participant);
+    std::cout << "Someone left.";
   }
 
   void deliver(const message& msg)
@@ -74,6 +75,7 @@ public:
   void start()
   {
     room_.join(shared_from_this());
+    std::cout << "Someone joined.";
     do_read_header();
   }
 

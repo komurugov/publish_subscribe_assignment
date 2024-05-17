@@ -7,17 +7,46 @@
 
 using asio::ip::tcp;
 
+using std::cin;
+using std::cout;
+
 typedef std::deque<message> message_queue;
+
+class TPort
+{
+public:
+    TPort(const std::string& string) : string_(string) {}
+
+    std::string const& ToString() const { return string_; }
+private:
+    std::string string_;
+};
 
 class client
 {
 public:
-  client(asio::io_context& io_context,
-      const tcp::resolver::results_type& endpoints)
-    : io_context_(io_context),
-      socket_(io_context)
+  client()
+    : resolver_(io_context_),
+      socket_(io_context_)
   {
-    do_connect(endpoints);
+  }
+
+  std::size_t run()
+  {
+      return io_context_.run();
+  }
+
+  void do_connect(const TPort port)
+  {
+      auto endpoints = resolver_.resolve("127.0.0.1", port.ToString());
+      asio::async_connect(socket_, endpoints,
+          [this](std::error_code ec, tcp::endpoint)
+          {
+              if (!ec)
+              {
+                  do_read_header();
+              }
+          });
   }
 
   void write(const message& msg)
@@ -40,18 +69,6 @@ public:
   }
 
 private:
-  void do_connect(const tcp::resolver::results_type& endpoints)
-  {
-    asio::async_connect(socket_, endpoints,
-        [this](std::error_code ec, tcp::endpoint)
-        {
-          if (!ec)
-          {
-            do_read_header();
-          }
-        });
-  }
-
   void do_read_header()
   {
     asio::async_read(socket_,
@@ -111,38 +128,75 @@ private:
   }
 
 private:
-  asio::io_context& io_context_;
+  asio::io_context io_context_;
+  tcp::resolver resolver_;
   tcp::socket socket_;
   message read_msg_;
   message_queue write_msgs_;
 };
 
+class TUserCommand
+{
+public:
+    virtual ~TUserCommand() {}
+};
+
+class TUserCommandConnect : public TUserCommand
+{
+public:
+    TUserCommandConnect(TPort const& port) : port_{ port } {}
+    TPort const& GetPort() const { return port_; }
+private:
+    TPort port_;
+};
+
+class TUserCommandDisconnect : public TUserCommand
+{
+};
+
+class TUserCommandPublish : public TUserCommand
+{
+};
+
+TUserCommand* StringToUserCommand(std::string const& string)
+{
+    if (string.find("co") == 0)
+        return new TUserCommandConnect(TPort{ "" });
+    else if (string.find("di") == 0)
+        return new TUserCommandDisconnect;
+    else
+        return new TUserCommandPublish;
+}
+
 int main(int argc, char* argv[])
 {
   try
   {
-    if (argc != 3)
+    client c;
+
+    std::thread t([&c](){ while (true) c.run(); }); // we need a loop because io_context.run immediately returns when it's out of work
+
+    while (true)
     {
-      std::cerr << "Usage: client <host> <port>\n";
-      return 1;
-    }
-
-    asio::io_context io_context;
-
-    tcp::resolver resolver(io_context);
-    auto endpoints = resolver.resolve(argv[1], argv[2]);
-    client c(io_context, endpoints);
-
-    std::thread t([&io_context](){ io_context.run(); });
-
-    char line[message::max_body_length + 1];
-    while (std::cin.getline(line, message::max_body_length + 1))
-    {
-      message msg;
-      msg.body_length(std::strlen(line));
-      std::memcpy(msg.body(), line, msg.body_length());
-      msg.encode_header();
-      c.write(msg);
+        std::string inputString;
+        std::getline(cin, inputString);
+        std::unique_ptr<TUserCommand> userCommand{ StringToUserCommand(inputString) };
+        if (typeid(*userCommand) == typeid(TUserCommandConnect))
+        {
+            c.do_connect(TPort("111"));
+        }
+        else if (typeid(*userCommand) == typeid(TUserCommandDisconnect))
+        {
+            c.close();
+        }
+        else
+        {
+            message msg;
+            msg.body_length(inputString.size());
+            std::memcpy(msg.body(), inputString.c_str(), msg.body_length());
+            msg.encode_header();
+            c.write(msg);
+        }
     }
 
     c.close();

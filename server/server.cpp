@@ -117,7 +117,13 @@ private:
         {
           if (!ec)
           {
-            room_.deliver(read_msg_);
+            switch (read_msg_.Type())
+            {
+            case ClientMessageType::Publish:
+                std::cout << "publish";
+                room_.deliver(read_msg_);
+            }
+
             do_read_header();
           }
           else

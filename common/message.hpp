@@ -5,6 +5,12 @@
 #include <cstdlib>
 #include <cstring>
 
+enum class ClientMessageType
+{
+    Unknown,
+    Publish
+};
+
 class message
 {
 public:
@@ -73,9 +79,40 @@ public:
     std::memcpy(data_, header, header_length);
   }
 
-private:
+  ClientMessageType Type()
+  {
+      switch (data_[header_length])
+      {
+      case 'p': return ClientMessageType::Publish;
+      default: return ClientMessageType::Unknown;
+      }
+  }
+
+protected:
   char data_[header_length + max_body_length];
   std::size_t body_length_;
 };
+
+class ClientMessagePublish : public message
+{
+public:
+    ClientMessagePublish(std::string const& topic, std::string const& data)
+    {
+        size_t length = 1 + topic.length() + 1 + data.length();
+        if (length > max_body_length)
+            throw "Too long topic and data!";
+        data_[header_length] = 'p';
+        snprintf(data_ + header_length + 1, max_body_length, "%s %s", topic.c_str(), data.c_str());
+        body_length_ = length;
+        encode_header();
+    }
+
+    std::string GetTopic() const
+    {
+
+    }
+};
+
+
 
 #endif // MESSAGE_HPP

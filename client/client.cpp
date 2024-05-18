@@ -191,11 +191,7 @@ int main(int argc, char* argv[])
         }
         else
         {
-            message msg;
-            msg.body_length(inputString.size());
-            std::memcpy(msg.body(), inputString.c_str(), msg.body_length());
-            msg.encode_header();
-            c.write(msg);
+            c.write(ClientMessagePublish("common", inputString));
         }
     }
 

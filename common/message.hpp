@@ -8,6 +8,7 @@
 enum class ClientMessageType
 {
     Unknown,
+    Subscribe,
     Publish
 };
 
@@ -21,6 +22,21 @@ public:
     : body_length_(0)
   {
   }
+
+  message(std::string const& str)
+      : body_length_(str.length())
+  {
+      memcpy(data_ + header_length, str.c_str(), body_length_);
+      encode_header();
+  }
+
+  message(char const* str, size_t len)
+      : body_length_(len)
+  {
+      memcpy(data_ + header_length, str, body_length_);
+      encode_header();
+  }
+
 
   const char* data() const
   {
@@ -83,9 +99,31 @@ public:
   {
       switch (data_[header_length])
       {
+      case 's': return ClientMessageType::Subscribe;
       case 'p': return ClientMessageType::Publish;
       default: return ClientMessageType::Unknown;
       }
+  }
+
+  message PublishData()
+  {
+      char* pos = strchr(data_ + header_length + 1, ' ');
+      if (!pos)
+          return message();
+      return message(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
+  }
+
+  std::string PublishTopic()
+  {
+      char* pos = strchr(data_ + header_length + 1, ' ');
+      if (!pos)
+          return std::string();
+      return std::string(data_ + header_length + 1, pos - (data_ + header_length + 1));
+  }
+
+  std::string SubscribeTopic()
+  {
+      return std::string(data_ + header_length + 1, body_length_ - 1);
   }
 
 protected:
@@ -106,13 +144,22 @@ public:
         body_length_ = length;
         encode_header();
     }
-
-    std::string GetTopic() const
-    {
-
-    }
 };
 
+class ClientMessageSubscribe : public message
+{
+public:
+    ClientMessageSubscribe(std::string const& topic)
+    {
+        size_t length = 1 + topic.length();
+        if (length > max_body_length)
+            throw "Too long topic!";
+        data_[header_length] = 's';
+        snprintf(data_ + header_length + 1, max_body_length, "%s", topic.c_str());
+        body_length_ = length;
+        encode_header();
+    }
+};
 
 
 #endif // MESSAGE_HPP

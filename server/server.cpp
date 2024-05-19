@@ -20,7 +20,7 @@ class participant
 {
 public:
   virtual ~participant() {}
-  virtual void deliver(const message& msg) = 0;
+  virtual void deliver(const message& msg, std::string const& topic) = 0;
 };
 
 typedef std::shared_ptr<participant> participant_ptr;
@@ -33,8 +33,6 @@ public:
   void join(participant_ptr participant)
   {
     participants_.insert(participant);
-    for (auto msg: recent_msgs_)
-      participant->deliver(msg);
   }
 
   void leave(participant_ptr participant)
@@ -43,20 +41,14 @@ public:
     std::cout << "Someone left.";
   }
 
-  void deliver(const message& msg)
+  void deliver(const message& msg, std::string const& topic)
   {
-    recent_msgs_.push_back(msg);
-    while (recent_msgs_.size() > max_recent_msgs)
-      recent_msgs_.pop_front();
-
     for (auto participant: participants_)
-      participant->deliver(msg);
+      participant->deliver(msg, topic);
   }
 
 private:
   std::set<participant_ptr> participants_;
-  enum { max_recent_msgs = 100 };
-  message_queue recent_msgs_;
 };
 
 //----------------------------------------------------------------------
@@ -79,8 +71,10 @@ public:
     do_read_header();
   }
 
-  void deliver(const message& msg)
+  void deliver(const message& msg, std::string const& topic)
   {
+      if (std::find(topics_.begin(), topics_.end(), topic) == topics_.end())
+          return;
     bool write_in_progress = !write_msgs_.empty();
     write_msgs_.push_back(msg);
     if (!write_in_progress)
@@ -119,9 +113,14 @@ private:
           {
             switch (read_msg_.Type())
             {
+            case ClientMessageType::Subscribe:
+                std::cout << "subscribe, topic=" << read_msg_.SubscribeTopic() << std::endl;
+                topics_.insert(read_msg_.SubscribeTopic());
+                break;
             case ClientMessageType::Publish:
-                std::cout << "publish";
-                room_.deliver(read_msg_);
+                std::cout << "publish, topic=" << read_msg_.PublishTopic() << std::endl;
+                room_.deliver(read_msg_.PublishData(), read_msg_.PublishTopic());
+                break;
             }
 
             do_read_header();
@@ -160,6 +159,7 @@ private:
   room& room_;
   message read_msg_;
   message_queue write_msgs_;
+  std::set<std::string> topics_;
 };
 
 //----------------------------------------------------------------------

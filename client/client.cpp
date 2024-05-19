@@ -154,8 +154,31 @@ class TUserCommandDisconnect : public TUserCommand
 {
 };
 
+class TUserCommandSubscribe : public TUserCommand
+{
+public:
+    TUserCommandSubscribe(char const* topicPtr, size_t const topicLen)
+        : topic_(topicPtr, topicLen)
+    {
+    }
+    std::string const& Topic() { return topic_; }
+private:
+    std::string topic_;
+};
+
 class TUserCommandPublish : public TUserCommand
 {
+public:
+    TUserCommandPublish(char const* topicPtr, size_t const topicLen, char const* dataPtr, size_t dataLen)
+        : topic_(topicPtr, topicLen),
+          data_(dataPtr, dataLen)
+    {
+    }
+    std::string const& Topic() { return topic_; }
+    std::string const& Data() { return data_; }
+private:
+    std::string topic_;
+    std::string data_;
 };
 
 TUserCommand* StringToUserCommand(std::string const& string)
@@ -164,8 +187,13 @@ TUserCommand* StringToUserCommand(std::string const& string)
         return new TUserCommandConnect(TPort{ "" });
     else if (string.find("di") == 0)
         return new TUserCommandDisconnect;
+    else if (string.find("su") == 0)
+        return new TUserCommandSubscribe(string.c_str() + 3, string.length() - 3);
     else
-        return new TUserCommandPublish;
+    {
+        char const* space = strchr(string.c_str(), ' ');
+        return new TUserCommandPublish(string.c_str(), space - string.c_str(), space + 1, string.length() - (space - string.c_str() + 1));
+    }
 }
 
 int main(int argc, char* argv[])
@@ -189,9 +217,15 @@ int main(int argc, char* argv[])
         {
             c.close();
         }
-        else
+        else if (typeid(*userCommand) == typeid(TUserCommandSubscribe))
         {
-            c.write(ClientMessagePublish("common", inputString));
+            auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get());
+            c.write(ClientMessageSubscribe(cmd->Topic()));
+        }
+        else if (typeid(*userCommand) == typeid(TUserCommandPublish))
+        {
+            auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get());
+            c.write(ClientMessagePublish(cmd->Topic(), cmd->Data()));
         }
     }
 

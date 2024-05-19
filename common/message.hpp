@@ -133,6 +133,11 @@ public:
       return std::string(data_ + header_length + 1, body_length_ - 1);
   }
 
+  std::string ToString() const
+  {
+      return std::string(data_ + header_length, body_length_);
+  }
+
 protected:
   char data_[header_length + max_body_length];
   std::size_t body_length_;

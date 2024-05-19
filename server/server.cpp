@@ -10,6 +10,8 @@
 
 using asio::ip::tcp;
 
+using std::cout;
+
 //----------------------------------------------------------------------
 
 typedef std::deque<message> message_queue;
@@ -33,12 +35,13 @@ public:
   void join(participant_ptr participant)
   {
     participants_.insert(participant);
+    cout << "A client connected." << std::endl;
   }
 
   void leave(participant_ptr participant)
   {
     participants_.erase(participant);
-    std::cout << "Someone left.";
+    cout << "A client disconnected." << std::endl;
   }
 
   void deliver(const message& msg, std::string const& topic)
@@ -67,7 +70,6 @@ public:
   void start()
   {
     room_.join(shared_from_this());
-    std::cout << "Someone joined.";
     do_read_header();
   }
 
@@ -81,6 +83,7 @@ public:
     {
       do_write();
     }
+    cout << "The server is sending data \"" << msg.ToString() << "\" to a client." << std::endl;
   }
 
 private:
@@ -114,15 +117,15 @@ private:
             switch (read_msg_.Type())
             {
             case ClientMessageType::Subscribe:
-                std::cout << "subscribe, topic=" << read_msg_.SubscribeTopic() << std::endl;
+                cout << "A client tries to subscribe to the topic \"" << read_msg_.SubscribeTopic() << "\"." << std::endl;
                 topics_.insert(read_msg_.SubscribeTopic());
                 break;
             case ClientMessageType::Unsubscribe:
-                std::cout << "unsubscribe, topic=" << read_msg_.UnsubscribeTopic() << std::endl;
+                cout << "A client tries to unsubscribe from the topic \"" << read_msg_.UnsubscribeTopic() << "\"." << std::endl;
                 topics_.erase(read_msg_.UnsubscribeTopic());
                 break;
             case ClientMessageType::Publish:
-                std::cout << "publish, topic=" << read_msg_.PublishTopic() << std::endl;
+                cout << "A client sent data \"" << read_msg_.PublishData().ToString() << "\" with topic \"" << read_msg_.PublishTopic() << "\"." << std::endl;
                 room_.deliver(read_msg_.PublishData(), read_msg_.PublishTopic());
                 break;
             }

@@ -144,10 +144,14 @@ public:
 class TUserCommandConnect : public TUserCommand
 {
 public:
-    TUserCommandConnect(TPort const& port) : port_{ port } {}
+    TUserCommandConnect(TPort const& port, std::string const& clientName)
+        : port_{ port }, clientName_{ clientName }
+    {
+    }
     TPort const& GetPort() const { return port_; }
 private:
     TPort port_;
+    std::string clientName_;
 };
 
 class TUserCommandDisconnect : public TUserCommand
@@ -195,19 +199,37 @@ private:
 
 TUserCommand* StringToUserCommand(std::string const& string)
 {
-    if (string.find("co") == 0)
-        return new TUserCommandConnect(TPort{ "" });
-    else if (string.find("di") == 0)
-        return new TUserCommandDisconnect;
-    else if (string.find("su") == 0)
-        return new TUserCommandSubscribe(string.c_str() + 3, string.length() - 3);
-    else if (string.find("un") == 0)
-        return new TUserCommandUnsubscribe(string.c_str() + 3, string.length() - 3);
-    else
+    std::string option;
+    
+    option = "CONNECT ";
+    if (string.starts_with(option))
     {
-        char const* space = strchr(string.c_str(), ' ');
-        return new TUserCommandPublish(string.c_str(), space - string.c_str(), space + 1, string.length() - (space - string.c_str() + 1));
+        size_t space = string.find_first_of(' ', option.length());
+        return new TUserCommandConnect(TPort{ string.substr(option.length(), space - option.length()) },
+            string.substr(space + 1));
     }
+
+    option = "DISCONNECT";
+    if (string == option)
+        return new TUserCommandDisconnect;
+
+    option = "SUBSCRIBE ";
+    if (string.starts_with(option))
+        return new TUserCommandSubscribe(string.c_str() + option.length(), string.length() - option.length());
+
+    option = "UNSUBSCRIBE ";
+    if (string.starts_with(option))
+        return new TUserCommandUnsubscribe(string.c_str() + option.length(), string.length() - option.length());
+
+    option = "PUBLISH ";
+    if (string.starts_with(option))
+    {
+        size_t space = string.find_first_of(' ', option.length());
+        return new TUserCommandPublish(string.c_str() + option.length(), space - option.length(),
+            string.c_str() + space + 1, string.length() - (space + 1));
+    }
+
+    throw std::logic_error("Cannot parse this command!");
 }
 
 int main(int argc, char* argv[])
@@ -222,29 +244,37 @@ int main(int argc, char* argv[])
     {
         std::string inputString;
         std::getline(cin, inputString);
-        std::unique_ptr<TUserCommand> userCommand{ StringToUserCommand(inputString) };
-        if (typeid(*userCommand) == typeid(TUserCommandConnect))
+        try
         {
-            c.do_connect(TPort("111"));
+            std::unique_ptr<TUserCommand> userCommand{ StringToUserCommand(inputString) };
+            if (typeid(*userCommand) == typeid(TUserCommandConnect))
+            {
+                auto cmd = dynamic_cast<TUserCommandConnect*>(userCommand.get());
+                c.do_connect(cmd->GetPort());
+            }
+            else if (typeid(*userCommand) == typeid(TUserCommandDisconnect))
+            {
+                c.close();
+            }
+            else if (typeid(*userCommand) == typeid(TUserCommandSubscribe))
+            {
+                auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get());
+                c.write(ClientMessageSubscribe(cmd->Topic()));
+            }
+            else if (typeid(*userCommand) == typeid(TUserCommandUnsubscribe))
+            {
+                auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get());
+                c.write(ClientMessageUnsubscribe(cmd->Topic()));
+            }
+            else if (typeid(*userCommand) == typeid(TUserCommandPublish))
+            {
+                auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get());
+                c.write(ClientMessagePublish(cmd->Topic(), cmd->Data()));
+            }
         }
-        else if (typeid(*userCommand) == typeid(TUserCommandDisconnect))
+        catch (std::exception& e)
         {
-            c.close();
-        }
-        else if (typeid(*userCommand) == typeid(TUserCommandSubscribe))
-        {
-            auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get());
-            c.write(ClientMessageSubscribe(cmd->Topic()));
-        }
-        else if (typeid(*userCommand) == typeid(TUserCommandUnsubscribe))
-        {
-            auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get());
-            c.write(ClientMessageUnsubscribe(cmd->Topic()));
-        }
-        else if (typeid(*userCommand) == typeid(TUserCommandPublish))
-        {
-            auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get());
-            c.write(ClientMessagePublish(cmd->Topic(), cmd->Data()));
+            std::cerr << e.what() << std::endl;
         }
     }
 

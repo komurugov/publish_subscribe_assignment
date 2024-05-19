@@ -9,6 +9,7 @@ enum class ClientMessageType
 {
     Unknown,
     Subscribe,
+    Unsubscribe,
     Publish
 };
 
@@ -100,6 +101,7 @@ public:
       switch (data_[header_length])
       {
       case 's': return ClientMessageType::Subscribe;
+      case 'u': return ClientMessageType::Unsubscribe;
       case 'p': return ClientMessageType::Publish;
       default: return ClientMessageType::Unknown;
       }
@@ -126,6 +128,11 @@ public:
       return std::string(data_ + header_length + 1, body_length_ - 1);
   }
 
+  std::string UnsubscribeTopic()
+  {
+      return std::string(data_ + header_length + 1, body_length_ - 1);
+  }
+
 protected:
   char data_[header_length + max_body_length];
   std::size_t body_length_;
@@ -141,6 +148,21 @@ public:
             throw "Too long topic and data!";
         data_[header_length] = 'p';
         snprintf(data_ + header_length + 1, max_body_length, "%s %s", topic.c_str(), data.c_str());
+        body_length_ = length;
+        encode_header();
+    }
+};
+
+class ClientMessageUnsubscribe : public message
+{
+public:
+    ClientMessageUnsubscribe(std::string const& topic)
+    {
+        size_t length = 1 + topic.length();
+        if (length > max_body_length)
+            throw "Too long topic!";
+        data_[header_length] = 'u';
+        snprintf(data_ + header_length + 1, max_body_length, "%s", topic.c_str());
         body_length_ = length;
         encode_header();
     }

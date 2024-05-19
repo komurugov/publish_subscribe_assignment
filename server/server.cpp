@@ -117,6 +117,10 @@ private:
                 std::cout << "subscribe, topic=" << read_msg_.SubscribeTopic() << std::endl;
                 topics_.insert(read_msg_.SubscribeTopic());
                 break;
+            case ClientMessageType::Unsubscribe:
+                std::cout << "unsubscribe, topic=" << read_msg_.UnsubscribeTopic() << std::endl;
+                topics_.erase(read_msg_.UnsubscribeTopic());
+                break;
             case ClientMessageType::Publish:
                 std::cout << "publish, topic=" << read_msg_.PublishTopic() << std::endl;
                 room_.deliver(read_msg_.PublishData(), read_msg_.PublishTopic());

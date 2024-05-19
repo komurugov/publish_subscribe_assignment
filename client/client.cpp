@@ -166,6 +166,18 @@ private:
     std::string topic_;
 };
 
+class TUserCommandUnsubscribe : public TUserCommand
+{
+public:
+    TUserCommandUnsubscribe(char const* topicPtr, size_t const topicLen)
+        : topic_(topicPtr, topicLen)
+    {
+    }
+    std::string const& Topic() { return topic_; }
+private:
+    std::string topic_;
+};
+
 class TUserCommandPublish : public TUserCommand
 {
 public:
@@ -189,6 +201,8 @@ TUserCommand* StringToUserCommand(std::string const& string)
         return new TUserCommandDisconnect;
     else if (string.find("su") == 0)
         return new TUserCommandSubscribe(string.c_str() + 3, string.length() - 3);
+    else if (string.find("un") == 0)
+        return new TUserCommandUnsubscribe(string.c_str() + 3, string.length() - 3);
     else
     {
         char const* space = strchr(string.c_str(), ' ');
@@ -221,6 +235,11 @@ int main(int argc, char* argv[])
         {
             auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get());
             c.write(ClientMessageSubscribe(cmd->Topic()));
+        }
+        else if (typeid(*userCommand) == typeid(TUserCommandUnsubscribe))
+        {
+            auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get());
+            c.write(ClientMessageUnsubscribe(cmd->Topic()));
         }
         else if (typeid(*userCommand) == typeid(TUserCommandPublish))
         {

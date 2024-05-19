@@ -94,8 +94,7 @@ private:
         {
           if (!ec)
           {
-            std::cout.write(read_msg_.body(), read_msg_.body_length());
-            std::cout << "\n";
+            cout << "[Message] Topic: " << read_msg_.ServerToClientTopic() << " Data: " << read_msg_.ServerToClientData() << std::endl;
             do_read_header();
           }
           else

@@ -22,7 +22,7 @@ class participant
 {
 public:
   virtual ~participant() {}
-  virtual void deliver(const message& msg, std::string const& topic) = 0;
+  virtual void deliver(const std::string& msg, std::string const& topic) = 0;
 };
 
 typedef std::shared_ptr<participant> participant_ptr;
@@ -44,7 +44,7 @@ public:
     cout << "A client disconnected." << std::endl;
   }
 
-  void deliver(const message& msg, std::string const& topic)
+  void deliver(const std::string& msg, std::string const& topic)
   {
     for (auto participant: participants_)
       participant->deliver(msg, topic);
@@ -73,17 +73,17 @@ public:
     do_read_header();
   }
 
-  void deliver(const message& msg, std::string const& topic)
+  void deliver(const std::string& msg, std::string const& topic)
   {
       if (std::find(topics_.begin(), topics_.end(), topic) == topics_.end())
           return;
     bool write_in_progress = !write_msgs_.empty();
-    write_msgs_.push_back(msg);
+    write_msgs_.push_back(ServerMessage(topic, msg));
     if (!write_in_progress)
     {
       do_write();
     }
-    cout << "The server is sending data \"" << msg.ToString() << "\" to a client." << std::endl;
+    cout << "The server is sending data \"" << msg << "\" with the topic \"" << topic << "\" to a client." << std::endl;
   }
 
 private:
@@ -125,7 +125,7 @@ private:
                 topics_.erase(read_msg_.UnsubscribeTopic());
                 break;
             case ClientMessageType::Publish:
-                cout << "A client sent data \"" << read_msg_.PublishData().ToString() << "\" with topic \"" << read_msg_.PublishTopic() << "\"." << std::endl;
+                cout << "A client sent data \"" << read_msg_.PublishData() << "\" with topic \"" << read_msg_.PublishTopic() << "\"." << std::endl;
                 room_.deliver(read_msg_.PublishData(), read_msg_.PublishTopic());
                 break;
             }

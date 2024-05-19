@@ -107,12 +107,12 @@ public:
       }
   }
 
-  message PublishData()
+  std::string PublishData()
   {
       char* pos = strchr(data_ + header_length + 1, ' ');
       if (!pos)
-          return message();
-      return message(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
+          return std::string();
+      return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
   }
 
   std::string PublishTopic()
@@ -123,6 +123,22 @@ public:
       return std::string(data_ + header_length + 1, pos - (data_ + header_length + 1));
   }
 
+  std::string ServerToClientData()
+  {
+      char* pos = strchr(data_ + header_length, ' ');
+      if (!pos)
+          return std::string();
+      return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
+  }
+
+  std::string ServerToClientTopic()
+  {
+      char* pos = strchr(data_ + header_length, ' ');
+      if (!pos)
+          return std::string();
+      return std::string(data_ + header_length, pos - (data_ + header_length));
+  }
+
   std::string SubscribeTopic()
   {
       return std::string(data_ + header_length + 1, body_length_ - 1);
@@ -131,11 +147,6 @@ public:
   std::string UnsubscribeTopic()
   {
       return std::string(data_ + header_length + 1, body_length_ - 1);
-  }
-
-  std::string ToString() const
-  {
-      return std::string(data_ + header_length, body_length_);
   }
 
 protected:
@@ -187,6 +198,21 @@ public:
         encode_header();
     }
 };
+
+class ServerMessage : public message
+{
+public:
+    ServerMessage(std::string const& topic, std::string const& data)
+    {
+        size_t length = topic.length() + 1 + data.length();
+        if (length > max_body_length)
+            throw "Too long topic and data!";
+        snprintf(data_ + header_length, max_body_length, "%s %s", topic.c_str(), data.c_str());
+        body_length_ = length;
+        encode_header();
+    }
+};
+
 
 
 #endif // MESSAGE_HPP

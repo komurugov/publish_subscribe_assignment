@@ -218,12 +218,9 @@ int main(int argc, char* argv[])
 
     asio::io_context io_context;
 
-    std::list<server> servers;
-    for (int i = 1; i < argc; ++i)
-    {
-      tcp::endpoint endpoint(tcp::v4(), std::atoi(argv[i]));
-      servers.emplace_back(io_context, endpoint);
-    }
+    tcp::endpoint endpoint{ tcp::v4(), static_cast<asio::ip::port_type>(std::atoi(argv[1])) };
+
+    server server{ io_context, endpoint };
 
     io_context.run();
   }

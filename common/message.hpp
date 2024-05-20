@@ -24,21 +24,6 @@ public:
   {
   }
 
-  message(std::string const& str)
-      : body_length_(str.length())
-  {
-      memcpy(data_ + header_length, str.c_str(), body_length_);
-      encode_header();
-  }
-
-  message(char const* str, size_t len)
-      : body_length_(len)
-  {
-      memcpy(data_ + header_length, str, body_length_);
-      encode_header();
-  }
-
-
   const char* data() const
   {
     return data_;

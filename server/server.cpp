@@ -74,36 +74,48 @@ public:
     do_read_header();
   }
 
-  void deliver(const std::string& msg, std::string const& topic)
+  void deliver(const std::string& data, std::string const& topic)
   {
-      if (std::find(topics_.begin(), topics_.end(), topic) == topics_.end())
+    if (std::find(topics_.begin(), topics_.end(), topic) == topics_.end())
           return;
     bool write_in_progress = !write_msgs_.empty();
-    write_msgs_.push_back(ServerMessage(topic, msg));
+    message msg;
+    ServerMessage{}.Serialize(topic, data, msg);
+    write_msgs_.push_back(msg);
     if (!write_in_progress)
     {
       do_write();
     }
-    cout << "The server is sending data \"" << msg << "\" with the topic \"" << topic << "\" to a client." << std::endl;
+    cout << "The server is sending data \"" << data << "\" with the topic \"" << topic << "\" to a client." << std::endl;
   }
 
 private:
   void ProcessMessageFromClient(message const& msg)
   {
-      switch (msg.Type())
+      std::unique_ptr<ClientMessage> clientMessage{ CreateParser(msg) };
+      if (clientMessage.get() == nullptr)
       {
-      case ClientMessageType::Subscribe:
-          cout << "A client tries to subscribe to the topic \"" << msg.SubscribeTopic() << "\"." << std::endl;
-          topics_.insert(msg.SubscribeTopic());
-          break;
-      case ClientMessageType::Unsubscribe:
-          cout << "A client tries to unsubscribe from the topic \"" << msg.UnsubscribeTopic() << "\"." << std::endl;
-          topics_.erase(msg.UnsubscribeTopic());
-          break;
-      case ClientMessageType::Publish:
-          cout << "A client sent data \"" << msg.PublishData() << "\" with topic \"" << msg.PublishTopic() << "\"." << std::endl;
-          room_.deliver(msg.PublishData(), msg.PublishTopic());
-          break;
+          return;
+      }
+
+      if (auto parser = dynamic_cast<ClientMessageSubscribe*>(clientMessage.get()))
+      {
+          std::string topic{ parser->Topic(msg) };
+          cout << "A client tries to subscribe to the topic \"" << topic << "\"." << std::endl;
+          topics_.insert(topic);
+      }
+      else if (auto parser = dynamic_cast<ClientMessageUnsubscribe*>(clientMessage.get()))
+      {
+          std::string topic{ parser->Topic(msg) };
+          cout << "A client tries to unsubscribe from the topic \"" << topic << "\"." << std::endl;
+          topics_.erase(topic);
+      }
+      else if (auto parser = dynamic_cast<ClientMessagePublish*>(clientMessage.get()))
+      {
+          std::string topic{ parser->Topic(msg) };
+          std::string data{ parser->Data(msg) };
+          cout << "A client sent data \"" << data << "\" with topic \"" << topic << "\"." << std::endl;
+          room_.deliver(data, topic);
       }
   }
 

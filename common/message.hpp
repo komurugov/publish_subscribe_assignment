@@ -5,13 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 
-enum class ClientMessageType
-{
-    Unknown,
-    Subscribe,
-    Unsubscribe,
-    Publish
-};
 
 class message
 {
@@ -81,123 +74,125 @@ public:
     std::memcpy(data_, header, header_length);
   }
 
-  ClientMessageType Type() const
-  {
-      switch (data_[header_length])
-      {
-      case 's': return ClientMessageType::Subscribe;
-      case 'u': return ClientMessageType::Unsubscribe;
-      case 'p': return ClientMessageType::Publish;
-      default: return ClientMessageType::Unknown;
-      }
-  }
-
-  std::string PublishData() const
-  {
-      char const* pos = strchr(data_ + header_length + 1, ' ');
-      if (!pos)
-          return std::string();
-      return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
-  }
-
-  std::string PublishTopic() const
-  {
-      char const* pos = strchr(data_ + header_length + 1, ' ');
-      if (!pos)
-          return std::string();
-      return std::string(data_ + header_length + 1, pos - (data_ + header_length + 1));
-  }
-
-  std::string ServerToClientData() const
-  {
-      char const* pos = strchr(data_ + header_length, ' ');
-      if (!pos)
-          return std::string();
-      return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
-  }
-
-  std::string ServerToClientTopic() const
-  {
-      char const* pos = strchr(data_ + header_length, ' ');
-      if (!pos)
-          return std::string();
-      return std::string(data_ + header_length, pos - (data_ + header_length));
-  }
-
-  std::string SubscribeTopic() const
-  {
-      return std::string(data_ + header_length + 1, body_length_ - 1);
-  }
-
-  std::string UnsubscribeTopic() const
-  {
-      return std::string(data_ + header_length + 1, body_length_ - 1);
-  }
-
 protected:
   char data_[header_length + max_body_length];
   std::size_t body_length_;
 };
 
-class ClientMessagePublish : public message
+
+class ClientMessage
 {
 public:
-    ClientMessagePublish(std::string const& topic, std::string const& data)
+    virtual ~ClientMessage() {}
+};
+
+
+class ClientMessageSubscribe : public ClientMessage
+{
+public:
+    void Serialize(std::string const& topic, message& msg) const
+    {
+        size_t length = 1 + topic.length();
+        if (length > message::max_body_length)
+            throw "Too long topic!";
+        msg.body()[0] = 's';
+        snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
+        msg.body_length(length);
+        msg.encode_header();
+    }
+    std::string Topic(message const& msg) const
+    {
+        return std::string(msg.body() + 1, msg.body_length() - 1);
+    }
+};
+
+class ClientMessageUnsubscribe : public ClientMessage
+{
+public:
+    void Serialize(std::string const& topic, message& msg) const
+    {
+        size_t length = 1 + topic.length();
+        if (length > message::max_body_length)
+            throw "Too long topic!";
+        msg.body()[0] = 'u';
+        snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
+        msg.body_length(length);
+        msg.encode_header();
+    }
+    std::string Topic(message const& msg) const
+    {
+        return std::string(msg.body() + 1, msg.body_length() - 1);
+    }
+};
+
+class ClientMessagePublish : public ClientMessage
+{
+public:
+    void Serialize(std::string const& topic, std::string const& data, message& msg) const
     {
         size_t length = 1 + topic.length() + 1 + data.length();
-        if (length > max_body_length)
+        if (length > message::max_body_length)
             throw "Too long topic and data!";
-        data_[header_length] = 'p';
-        snprintf(data_ + header_length + 1, max_body_length, "%s %s", topic.c_str(), data.c_str());
-        body_length_ = length;
-        encode_header();
+        msg.body()[0] = 'p';
+        snprintf(msg.body() + 1, message::max_body_length, "%s %s", topic.c_str(), data.c_str());
+        msg.body_length(length);
+        msg.encode_header();
     }
-};
-
-class ClientMessageUnsubscribe : public message
-{
-public:
-    ClientMessageUnsubscribe(std::string const& topic)
+    std::string Data(message const& msg) const
     {
-        size_t length = 1 + topic.length();
-        if (length > max_body_length)
-            throw "Too long topic!";
-        data_[header_length] = 'u';
-        snprintf(data_ + header_length + 1, max_body_length, "%s", topic.c_str());
-        body_length_ = length;
-        encode_header();
+        char const* pos = strchr(msg.body() + 1, ' ');
+        if (!pos)
+            return std::string();
+        return std::string(pos + 1, msg.body_length() - (pos - msg.body() + 1));
     }
-};
-
-class ClientMessageSubscribe : public message
-{
-public:
-    ClientMessageSubscribe(std::string const& topic)
+    std::string Topic(message const& msg) const
     {
-        size_t length = 1 + topic.length();
-        if (length > max_body_length)
-            throw "Too long topic!";
-        data_[header_length] = 's';
-        snprintf(data_ + header_length + 1, max_body_length, "%s", topic.c_str());
-        body_length_ = length;
-        encode_header();
+        char const* pos = strchr(msg.body() + 1, ' ');
+        if (!pos)
+            return std::string();
+        return std::string(msg.body() + 1, pos - (msg.body() + 1));
     }
 };
 
-class ServerMessage : public message
+
+ClientMessage* CreateParser(message const& msg)
+{
+    switch (msg.body()[0])
+    {
+    case 's': return new ClientMessageSubscribe;
+    case 'u': return new ClientMessageUnsubscribe;
+    case 'p': return new ClientMessagePublish;
+    }
+    return nullptr;
+}
+
+
+class ServerMessage
 {
 public:
-    ServerMessage(std::string const& topic, std::string const& data)
+    void Serialize(std::string const& topic, std::string const& data, message& msg) const
     {
         size_t length = topic.length() + 1 + data.length();
-        if (length > max_body_length)
+        if (length > message::max_body_length)
             throw "Too long topic and data!";
-        snprintf(data_ + header_length, max_body_length, "%s %s", topic.c_str(), data.c_str());
-        body_length_ = length;
-        encode_header();
+        snprintf(msg.body(), message::max_body_length, "%s %s", topic.c_str(), data.c_str());
+        msg.body_length(length);
+        msg.encode_header();
+    }
+    std::string Data(message const& msg) const
+    {
+        char const* pos = strchr(msg.body(), ' ');
+        if (!pos)
+            return std::string();
+        return std::string(pos + 1, msg.body_length() - (pos - msg.body() + 1));
+    }
+    std::string Topic(message const& msg) const
+    {
+        char const* pos = strchr(msg.body(), ' ');
+        if (!pos)
+            return std::string();
+        return std::string(msg.body(), pos - msg.body());
     }
 };
-
-
 
 #endif // MESSAGE_HPP

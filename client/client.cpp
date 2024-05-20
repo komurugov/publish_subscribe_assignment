@@ -27,8 +27,9 @@ private:
 
 void ProcessMessageFromServer(message const& msg)
 {
-    cout << "[Message] Topic: " << msg.ServerToClientTopic()
-         << " Data: " << msg.ServerToClientData() << std::endl;
+    ServerMessage parser;
+    cout << "[Message] Topic: " << parser.Topic(msg)
+         << " Data: " << parser.Data(msg) << std::endl;
 }
 
 class client
@@ -275,15 +276,21 @@ int main(int argc, char* argv[])
             }
             else if (auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get()))
             {
-                c.write(ClientMessageSubscribe(cmd->Topic()));
+                message msg;
+                ClientMessageSubscribe{}.Serialize(cmd->Topic(), msg);
+                c.write(msg);
             }
             else if (auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get()))
             {
-                c.write(ClientMessageUnsubscribe(cmd->Topic()));
+                message msg;
+                ClientMessageUnsubscribe{}.Serialize(cmd->Topic(), msg);
+                c.write(msg);
             }
             else if (auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get()))
             {
-                c.write(ClientMessagePublish(cmd->Topic(), cmd->Data()));
+                message msg;
+                ClientMessagePublish{}.Serialize(cmd->Topic(), cmd->Data(), msg);
+                c.write(msg);
             }
         }
         catch (std::exception& e)

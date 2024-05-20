@@ -86,16 +86,19 @@ public:
     virtual ~ClientMessage() {}
 };
 
-
 class ClientMessageSubscribe : public ClientMessage
 {
 public:
+    static constexpr char Signature()
+    {
+        return 's';
+    }
     void Serialize(std::string const& topic, message& msg) const
     {
         size_t length = 1 + topic.length();
         if (length > message::max_body_length)
             throw "Too long topic!";
-        msg.body()[0] = 's';
+        msg.body()[0] = Signature();
         snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
         msg.body_length(length);
         msg.encode_header();
@@ -109,12 +112,16 @@ public:
 class ClientMessageUnsubscribe : public ClientMessage
 {
 public:
+    static constexpr char Signature()
+    {
+        return 'u';
+    }
     void Serialize(std::string const& topic, message& msg) const
     {
         size_t length = 1 + topic.length();
         if (length > message::max_body_length)
             throw "Too long topic!";
-        msg.body()[0] = 'u';
+        msg.body()[0] = Signature();
         snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
         msg.body_length(length);
         msg.encode_header();
@@ -128,12 +135,16 @@ public:
 class ClientMessagePublish : public ClientMessage
 {
 public:
+    static constexpr char Signature()
+    {
+        return 'p';
+    }
     void Serialize(std::string const& topic, std::string const& data, message& msg) const
     {
         size_t length = 1 + topic.length() + 1 + data.length();
         if (length > message::max_body_length)
             throw "Too long topic and data!";
-        msg.body()[0] = 'p';
+        msg.body()[0] = Signature();
         snprintf(msg.body() + 1, message::max_body_length, "%s %s", topic.c_str(), data.c_str());
         msg.body_length(length);
         msg.encode_header();
@@ -154,14 +165,13 @@ public:
     }
 };
 
-
 ClientMessage* CreateParser(message const& msg)
 {
     switch (msg.body()[0])
     {
-    case 's': return new ClientMessageSubscribe;
-    case 'u': return new ClientMessageUnsubscribe;
-    case 'p': return new ClientMessagePublish;
+    case ClientMessageSubscribe::Signature():   return new ClientMessageSubscribe;
+    case ClientMessageUnsubscribe::Signature(): return new ClientMessageUnsubscribe;
+    case ClientMessagePublish::Signature():     return new ClientMessagePublish;
     }
     return nullptr;
 }

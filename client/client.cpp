@@ -12,6 +12,8 @@ using std::cout;
 
 typedef std::deque<message> message_queue;
 
+bool constexpr DEBUG = false;
+
 class TPort
 {
 public:
@@ -200,27 +202,28 @@ TUserCommand* StringToUserCommand(std::string const& string)
 {
     std::string option;
     
-    option = "CONNECT ";
+    option = DEBUG ? "co" : "CONNECT ";
     if (string.starts_with(option))
     {
         size_t space = string.find_first_of(' ', option.length());
-        return new TUserCommandConnect(TPort{ string.substr(option.length(), space - option.length()) },
-            string.substr(space + 1));
+        TPort port = TPort{ DEBUG ? "1999" : string.substr(option.length(), space - option.length()) };
+        std::string clientName = DEBUG ? "default_client" : string.substr(space + 1);
+        return new TUserCommandConnect(port, clientName);
     }
 
-    option = "DISCONNECT";
+    option = DEBUG ? "di" : "DISCONNECT";
     if (string == option)
         return new TUserCommandDisconnect;
 
-    option = "SUBSCRIBE ";
+    option = DEBUG ? "su " : "SUBSCRIBE ";
     if (string.starts_with(option))
         return new TUserCommandSubscribe(string.c_str() + option.length(), string.length() - option.length());
 
-    option = "UNSUBSCRIBE ";
+    option = DEBUG ? "un " : "UNSUBSCRIBE ";
     if (string.starts_with(option))
         return new TUserCommandUnsubscribe(string.c_str() + option.length(), string.length() - option.length());
 
-    option = "PUBLISH ";
+    option = DEBUG ? "pu " : "PUBLISH ";
     if (string.starts_with(option))
     {
         size_t space = string.find_first_of(' ', option.length());

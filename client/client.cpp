@@ -258,28 +258,25 @@ int main(int argc, char* argv[])
         try
         {
             std::unique_ptr<TUserCommand> userCommand{ StringToUserCommand(inputString) };
-            if (typeid(*userCommand) == typeid(TUserCommandConnect))
+
+            if (auto cmd = dynamic_cast<TUserCommandConnect*>(userCommand.get()))
             {
-                auto cmd = dynamic_cast<TUserCommandConnect*>(userCommand.get());
                 c.do_connect(cmd->GetPort());
             }
-            else if (typeid(*userCommand) == typeid(TUserCommandDisconnect))
+            else if (auto cmd = dynamic_cast<TUserCommandDisconnect*>(userCommand.get()))
             {
                 c.close();
             }
-            else if (typeid(*userCommand) == typeid(TUserCommandSubscribe))
+            else if (auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get()))
             {
-                auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get());
                 c.write(ClientMessageSubscribe(cmd->Topic()));
             }
-            else if (typeid(*userCommand) == typeid(TUserCommandUnsubscribe))
+            else if (auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get()))
             {
-                auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get());
                 c.write(ClientMessageUnsubscribe(cmd->Topic()));
             }
-            else if (typeid(*userCommand) == typeid(TUserCommandPublish))
+            else if (auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get()))
             {
-                auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get());
                 c.write(ClientMessagePublish(cmd->Topic(), cmd->Data()));
             }
         }

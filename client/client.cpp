@@ -217,11 +217,19 @@ TUserCommand* StringToUserCommand(std::string const& string)
 
     option = DEBUG ? "su " : "SUBSCRIBE ";
     if (string.starts_with(option))
+    {
+        if (string.find_first_of(' ', option.length()) != std::string::npos)
+            throw std::logic_error("Topic name cannot contain spaces!");    // to be able to distinct topic from data in the "publish" command
         return new TUserCommandSubscribe(string.c_str() + option.length(), string.length() - option.length());
+    }
 
     option = DEBUG ? "un " : "UNSUBSCRIBE ";
     if (string.starts_with(option))
+    {
+        if (string.find_first_of(' ', option.length()) != std::string::npos)
+            throw std::logic_error("Topic name cannot contain spaces!");    // to be able to distinct topic from data in the "publish" command
         return new TUserCommandUnsubscribe(string.c_str() + option.length(), string.length() - option.length());
+    }
 
     option = DEBUG ? "pu " : "PUBLISH ";
     if (string.starts_with(option))

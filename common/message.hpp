@@ -1,18 +1,19 @@
 #ifndef MESSAGE_HPP
 #define MESSAGE_HPP
 
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 
-class message
+class TMessageWithSizePrefix
 {
 public:
   static constexpr std::size_t header_length = 4;
   static constexpr std::size_t max_body_length = 512;
 
-  message()
+  TMessageWithSizePrefix()
     : body_length_(0)
   {
   }
@@ -80,83 +81,83 @@ protected:
 };
 
 
-class ClientMessage
+class ClientMessageProcessor
 {
 public:
-    virtual ~ClientMessage() {}
+    virtual ~ClientMessageProcessor() {}
 };
 
-class ClientMessageSubscribe : public ClientMessage
+class ClientMessageSubscribeProcessor : public ClientMessageProcessor
 {
 public:
     static constexpr char Signature()
     {
         return 's';
     }
-    void Serialize(std::string const& topic, message& msg) const
+    void Serialize(std::string const& topic, TMessageWithSizePrefix& msg) const
     {
         size_t length = 1 + topic.length();
-        if (length > message::max_body_length)
+        if (length > TMessageWithSizePrefix::max_body_length)
             throw "Too long topic!";
         msg.body()[0] = Signature();
-        snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
+        snprintf(msg.body() + 1, TMessageWithSizePrefix::max_body_length, "%s", topic.c_str());
         msg.body_length(length);
         msg.encode_header();
     }
-    std::string Topic(message const& msg) const
+    std::string Topic(TMessageWithSizePrefix const& msg) const
     {
         return std::string(msg.body() + 1, msg.body_length() - 1);
     }
 };
 
-class ClientMessageUnsubscribe : public ClientMessage
+class ClientMessageUnsubscribeProcessor : public ClientMessageProcessor
 {
 public:
     static constexpr char Signature()
     {
         return 'u';
     }
-    void Serialize(std::string const& topic, message& msg) const
+    void Serialize(std::string const& topic, TMessageWithSizePrefix& msg) const
     {
         size_t length = 1 + topic.length();
-        if (length > message::max_body_length)
+        if (length > TMessageWithSizePrefix::max_body_length)
             throw "Too long topic!";
         msg.body()[0] = Signature();
-        snprintf(msg.body() + 1, message::max_body_length, "%s", topic.c_str());
+        snprintf(msg.body() + 1, TMessageWithSizePrefix::max_body_length, "%s", topic.c_str());
         msg.body_length(length);
         msg.encode_header();
     }
-    std::string Topic(message const& msg) const
+    std::string Topic(TMessageWithSizePrefix const& msg) const
     {
         return std::string(msg.body() + 1, msg.body_length() - 1);
     }
 };
 
-class ClientMessagePublish : public ClientMessage
+class ClientMessagePublishProcessor : public ClientMessageProcessor
 {
 public:
     static constexpr char Signature()
     {
         return 'p';
     }
-    void Serialize(std::string const& topic, std::string const& data, message& msg) const
+    void Serialize(std::string const& topic, std::string const& data, TMessageWithSizePrefix& msg) const
     {
         size_t length = 1 + topic.length() + 1 + data.length();
-        if (length > message::max_body_length)
+        if (length > TMessageWithSizePrefix::max_body_length)
             throw "Too long topic and data!";
         msg.body()[0] = Signature();
-        snprintf(msg.body() + 1, message::max_body_length, "%s %s", topic.c_str(), data.c_str());
+        snprintf(msg.body() + 1, TMessageWithSizePrefix::max_body_length, "%s %s", topic.c_str(), data.c_str());
         msg.body_length(length);
         msg.encode_header();
     }
-    std::string Data(message const& msg) const
+    std::string Data(TMessageWithSizePrefix const& msg) const
     {
         char const* pos = strchr(msg.body() + 1, ' ');
         if (!pos)
             return std::string();
         return std::string(pos + 1, msg.body_length() - (pos - msg.body() + 1));
     }
-    std::string Topic(message const& msg) const
+    std::string Topic(TMessageWithSizePrefix const& msg) const
     {
         char const* pos = strchr(msg.body() + 1, ' ');
         if (!pos)
@@ -165,38 +166,38 @@ public:
     }
 };
 
-ClientMessage* CreateParser(message const& msg)
+ClientMessageProcessor* CreateClientMessageProcessor(TMessageWithSizePrefix const& msg)
 {
     switch (msg.body()[0])
     {
-    case ClientMessageSubscribe::Signature():   return new ClientMessageSubscribe;
-    case ClientMessageUnsubscribe::Signature(): return new ClientMessageUnsubscribe;
-    case ClientMessagePublish::Signature():     return new ClientMessagePublish;
+    case ClientMessageSubscribeProcessor::Signature():   return new ClientMessageSubscribeProcessor;
+    case ClientMessageUnsubscribeProcessor::Signature(): return new ClientMessageUnsubscribeProcessor;
+    case ClientMessagePublishProcessor::Signature():     return new ClientMessagePublishProcessor;
     }
     return nullptr;
 }
 
 
-class ServerMessage
+class ServerMessageProcessor
 {
 public:
-    void Serialize(std::string const& topic, std::string const& data, message& msg) const
+    void Serialize(std::string const& topic, std::string const& data, TMessageWithSizePrefix& msg) const
     {
         size_t length = topic.length() + 1 + data.length();
-        if (length > message::max_body_length)
+        if (length > TMessageWithSizePrefix::max_body_length)
             throw "Too long topic and data!";
-        snprintf(msg.body(), message::max_body_length, "%s %s", topic.c_str(), data.c_str());
+        snprintf(msg.body(), TMessageWithSizePrefix::max_body_length, "%s %s", topic.c_str(), data.c_str());
         msg.body_length(length);
         msg.encode_header();
     }
-    std::string Data(message const& msg) const
+    std::string Data(TMessageWithSizePrefix const& msg) const
     {
         char const* pos = strchr(msg.body(), ' ');
         if (!pos)
             return std::string();
         return std::string(pos + 1, msg.body_length() - (pos - msg.body() + 1));
     }
-    std::string Topic(message const& msg) const
+    std::string Topic(TMessageWithSizePrefix const& msg) const
     {
         char const* pos = strchr(msg.body(), ' ');
         if (!pos)
@@ -204,5 +205,6 @@ public:
         return std::string(msg.body(), pos - msg.body());
     }
 };
+
 
 #endif // MESSAGE_HPP

@@ -12,19 +12,19 @@ using asio::ip::tcp;
 using std::cin;
 using std::cout;
 
-typedef std::deque<message> message_queue;
+typedef std::deque<TMessageWithSizePrefix> message_queue;
 
-void ProcessMessageFromServer(message const& msg)
+void ProcessMessageFromServer(TMessageWithSizePrefix const& msg)
 {
-    ServerMessage parser;
+    ServerMessageProcessor parser;
     cout << "[Message] Topic: " << parser.Topic(msg)
          << " Data: " << parser.Data(msg) << std::endl;
 }
 
-class client
+class TClient
 {
 public:
-  client()
+  TClient()
     : resolver_(io_context_),
       socket_(io_context_)
   {
@@ -48,7 +48,7 @@ public:
           });
   }
 
-  void write(const message& msg)
+  void write(const TMessageWithSizePrefix& msg)
   {
     asio::post(io_context_,
         [this, msg]()
@@ -71,7 +71,7 @@ private:
   void do_read_header()
   {
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), message::header_length),
+        asio::buffer(read_msg_.data(), TMessageWithSizePrefix::header_length),
         [this](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec && read_msg_.decode_header())
@@ -129,7 +129,7 @@ private:
   asio::io_context io_context_;
   tcp::resolver resolver_;
   tcp::socket socket_;
-  message read_msg_;
+  TMessageWithSizePrefix read_msg_;
   message_queue write_msgs_;
 };
 
@@ -138,9 +138,9 @@ int main(int argc, char* argv[])
 {
   try
   {
-    client c;
+    TClient client;
 
-    std::thread t([&c](){ while (true) c.run(); }); // we need a loop because io_context.run immediately returns when it's out of work
+    std::thread thread([&client](){ while (true) client.run(); }); // we need a loop because io_context.run immediately returns when it's out of work
 
     while (true)
     {
@@ -152,29 +152,29 @@ int main(int argc, char* argv[])
 
             if (auto cmd = dynamic_cast<TUserCommandConnect*>(userCommand.get()))
             {
-                c.do_connect(cmd->GetPort());
+                client.do_connect(cmd->Port());
             }
             else if (auto cmd = dynamic_cast<TUserCommandDisconnect*>(userCommand.get()))
             {
-                c.close();
+                client.close();
             }
             else if (auto cmd = dynamic_cast<TUserCommandSubscribe*>(userCommand.get()))
             {
-                message msg;
-                ClientMessageSubscribe{}.Serialize(cmd->Topic(), msg);
-                c.write(msg);
+                TMessageWithSizePrefix msg;
+                ClientMessageSubscribeProcessor{}.Serialize(cmd->Topic(), msg);
+                client.write(msg);
             }
             else if (auto cmd = dynamic_cast<TUserCommandUnsubscribe*>(userCommand.get()))
             {
-                message msg;
-                ClientMessageUnsubscribe{}.Serialize(cmd->Topic(), msg);
-                c.write(msg);
+                TMessageWithSizePrefix msg;
+                ClientMessageUnsubscribeProcessor{}.Serialize(cmd->Topic(), msg);
+                client.write(msg);
             }
             else if (auto cmd = dynamic_cast<TUserCommandPublish*>(userCommand.get()))
             {
-                message msg;
-                ClientMessagePublish{}.Serialize(cmd->Topic(), cmd->Data(), msg);
-                c.write(msg);
+                TMessageWithSizePrefix msg;
+                ClientMessagePublishProcessor{}.Serialize(cmd->Topic(), cmd->Data(), msg);
+                client.write(msg);
             }
         }
         catch (std::exception& e)
@@ -183,8 +183,8 @@ int main(int argc, char* argv[])
         }
     }
 
-    c.close();
-    t.join();
+    client.close();
+    thread.join();
   }
   catch (std::exception& e)
   {

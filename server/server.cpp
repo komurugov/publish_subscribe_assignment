@@ -15,7 +15,7 @@ using std::cerr;
 
 //----------------------------------------------------------------------
 
-typedef std::deque<message> message_queue;
+typedef std::deque<TMessageWithSizePrefix> message_queue;
 
 //----------------------------------------------------------------------
 
@@ -79,8 +79,8 @@ public:
     if (std::find(topics_.begin(), topics_.end(), topic) == topics_.end())
           return;
     bool write_in_progress = !write_msgs_.empty();
-    message msg;
-    ServerMessage{}.Serialize(topic, data, msg);
+    TMessageWithSizePrefix msg;
+    ServerMessageProcessor{}.Serialize(topic, data, msg);
     write_msgs_.push_back(msg);
     if (!write_in_progress)
     {
@@ -90,27 +90,27 @@ public:
   }
 
 private:
-  void ProcessMessageFromClient(message const& msg)
+  void ProcessMessageFromClient(TMessageWithSizePrefix const& msg)
   {
-      std::unique_ptr<ClientMessage> clientMessage{ CreateParser(msg) };
-      if (clientMessage.get() == nullptr)
+      std::unique_ptr<ClientMessageProcessor> processor{ CreateClientMessageProcessor(msg) };
+      if (processor.get() == nullptr)
       {
           return;
       }
 
-      if (auto parser = dynamic_cast<ClientMessageSubscribe*>(clientMessage.get()))
+      if (auto parser = dynamic_cast<ClientMessageSubscribeProcessor*>(processor.get()))
       {
           std::string topic{ parser->Topic(msg) };
           cout << "A client tries to subscribe to the topic \"" << topic << "\"." << std::endl;
           topics_.insert(topic);
       }
-      else if (auto parser = dynamic_cast<ClientMessageUnsubscribe*>(clientMessage.get()))
+      else if (auto parser = dynamic_cast<ClientMessageUnsubscribeProcessor*>(processor.get()))
       {
           std::string topic{ parser->Topic(msg) };
           cout << "A client tries to unsubscribe from the topic \"" << topic << "\"." << std::endl;
           topics_.erase(topic);
       }
-      else if (auto parser = dynamic_cast<ClientMessagePublish*>(clientMessage.get()))
+      else if (auto parser = dynamic_cast<ClientMessagePublishProcessor*>(processor.get()))
       {
           std::string topic{ parser->Topic(msg) };
           std::string data{ parser->Data(msg) };
@@ -123,7 +123,7 @@ private:
   {
     auto self(shared_from_this());
     asio::async_read(socket_,
-        asio::buffer(read_msg_.data(), message::header_length),
+        asio::buffer(read_msg_.data(), TMessageWithSizePrefix::header_length),
         [this, self](std::error_code ec, std::size_t /*length*/)
         {
           if (!ec && read_msg_.decode_header())
@@ -181,7 +181,7 @@ private:
 
   tcp::socket socket_;
   room& room_;
-  message read_msg_;
+  TMessageWithSizePrefix read_msg_;
   message_queue write_msgs_;
   std::set<std::string> topics_;
 };

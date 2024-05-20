@@ -18,7 +18,7 @@ public:
         : port_{ port }, clientName_{ clientName }
     {
     }
-    TPort const& GetPort() const { return port_; }
+    TPort const& Port() const { return port_; }
 private:
     TPort port_;
     std::string clientName_;
@@ -69,7 +69,7 @@ private:
 
 TUserCommand* StringToUserCommand(std::string const& string)
 {
-    bool constexpr DEBUG = false;
+    bool constexpr DEBUG = false;   // "true" enables commands abbreviations
     std::regex re;
     std::smatch match;
 

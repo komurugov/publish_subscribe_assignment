@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <deque>
 #include <iostream>
+#include <regex>
 #include <thread>
 #include "../asio/asio/include/asio.hpp"
 #include "../common/message.hpp"
@@ -162,8 +163,8 @@ class TUserCommandDisconnect : public TUserCommand
 class TUserCommandSubscribe : public TUserCommand
 {
 public:
-    TUserCommandSubscribe(char const* topicPtr, size_t const topicLen)
-        : topic_(topicPtr, topicLen)
+    TUserCommandSubscribe(std::string const& topic)
+        : topic_(topic)
     {
     }
     std::string const& Topic() { return topic_; }
@@ -174,8 +175,8 @@ private:
 class TUserCommandUnsubscribe : public TUserCommand
 {
 public:
-    TUserCommandUnsubscribe(char const* topicPtr, size_t const topicLen)
-        : topic_(topicPtr, topicLen)
+    TUserCommandUnsubscribe(std::string const& topic)
+        : topic_(topic)
     {
     }
     std::string const& Topic() { return topic_; }
@@ -186,9 +187,9 @@ private:
 class TUserCommandPublish : public TUserCommand
 {
 public:
-    TUserCommandPublish(char const* topicPtr, size_t const topicLen, char const* dataPtr, size_t dataLen)
-        : topic_(topicPtr, topicLen),
-          data_(dataPtr, dataLen)
+    TUserCommandPublish(std::string const& topic, std::string const& data)
+        : topic_(topic),
+          data_(data)
     {
     }
     std::string const& Topic() { return topic_; }
@@ -200,43 +201,43 @@ private:
 
 TUserCommand* StringToUserCommand(std::string const& string)
 {
-    std::string option;
+    std::regex re;
+    std::smatch match;
     
-    option = DEBUG ? "co" : "CONNECT ";
-    if (string.starts_with(option))
+    re = DEBUG ? "^co$" : "^CONNECT ([0-9]+) (.+)$";
+    if (std::regex_match(string, match, re))
     {
-        size_t space = string.find_first_of(' ', option.length());
-        TPort port = TPort{ DEBUG ? "1999" : string.substr(option.length(), space - option.length()) };
-        std::string clientName = DEBUG ? "default_client" : string.substr(space + 1);
+        TPort port{ DEBUG ? "1999" : std::string{ match[1] } };
+        std::string clientName{ DEBUG ? "default_client" : std::string{ match[2] } };
         return new TUserCommandConnect(port, clientName);
     }
 
-    option = DEBUG ? "di" : "DISCONNECT";
-    if (string == option)
+    re = DEBUG ? "^di$" : "^DISCONNECT$";
+    if (std::regex_match(string, match, re))
+    {
         return new TUserCommandDisconnect;
-
-    option = DEBUG ? "su " : "SUBSCRIBE ";
-    if (string.starts_with(option))
-    {
-        if (string.find_first_of(' ', option.length()) != std::string::npos)
-            throw std::logic_error("Topic name cannot contain spaces!");    // to be able to distinct topic from data in the "publish" command
-        return new TUserCommandSubscribe(string.c_str() + option.length(), string.length() - option.length());
     }
 
-    option = DEBUG ? "un " : "UNSUBSCRIBE ";
-    if (string.starts_with(option))
+    re = DEBUG ? "^su ([^ ]+)$" : "^SUBSCRIBE ([^ ]+)$";    // topic name shouldn't contain spaces to be able to distinct it from data in the "publish" command
+    if (std::regex_match(string, match, re))
     {
-        if (string.find_first_of(' ', option.length()) != std::string::npos)
-            throw std::logic_error("Topic name cannot contain spaces!");    // to be able to distinct topic from data in the "publish" command
-        return new TUserCommandUnsubscribe(string.c_str() + option.length(), string.length() - option.length());
+        std::string topic{ match[1] };
+        return new TUserCommandSubscribe(topic);
     }
 
-    option = DEBUG ? "pu " : "PUBLISH ";
-    if (string.starts_with(option))
+    re = DEBUG ? "^un ([^ ]+)$" : "^UNSUBSCRIBE ([^ ]+)$";  // topic name shouldn't contain spaces to be able to distinct it from data in the "publish" command
+    if (std::regex_match(string, match, re))
     {
-        size_t space = string.find_first_of(' ', option.length());
-        return new TUserCommandPublish(string.c_str() + option.length(), space - option.length(),
-            string.c_str() + space + 1, string.length() - (space + 1));
+        std::string topic{ match[1] };
+        return new TUserCommandUnsubscribe(topic);
+    }
+
+    re = DEBUG ? "^pu ([^ ]+) (.+)" : "^PUBLISH ([^ ]+) (.+)";
+    if (std::regex_match(string, match, re))
+    {
+        std::string topic{ match[1] };
+        std::string data{ match[2] };
+        return new TUserCommandPublish(topic, data);
     }
 
     throw std::logic_error("Cannot parse this command!");

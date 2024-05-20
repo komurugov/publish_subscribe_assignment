@@ -96,7 +96,7 @@ public:
     std::memcpy(data_, header, header_length);
   }
 
-  ClientMessageType Type()
+  ClientMessageType Type() const
   {
       switch (data_[header_length])
       {
@@ -107,44 +107,44 @@ public:
       }
   }
 
-  std::string PublishData()
+  std::string PublishData() const
   {
-      char* pos = strchr(data_ + header_length + 1, ' ');
+      char const* pos = strchr(data_ + header_length + 1, ' ');
       if (!pos)
           return std::string();
       return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
   }
 
-  std::string PublishTopic()
+  std::string PublishTopic() const
   {
-      char* pos = strchr(data_ + header_length + 1, ' ');
+      char const* pos = strchr(data_ + header_length + 1, ' ');
       if (!pos)
           return std::string();
       return std::string(data_ + header_length + 1, pos - (data_ + header_length + 1));
   }
 
-  std::string ServerToClientData()
+  std::string ServerToClientData() const
   {
-      char* pos = strchr(data_ + header_length, ' ');
+      char const* pos = strchr(data_ + header_length, ' ');
       if (!pos)
           return std::string();
       return std::string(pos + 1, body_length_ - (pos - (data_ + header_length) + 1));
   }
 
-  std::string ServerToClientTopic()
+  std::string ServerToClientTopic() const
   {
-      char* pos = strchr(data_ + header_length, ' ');
+      char const* pos = strchr(data_ + header_length, ' ');
       if (!pos)
           return std::string();
       return std::string(data_ + header_length, pos - (data_ + header_length));
   }
 
-  std::string SubscribeTopic()
+  std::string SubscribeTopic() const
   {
       return std::string(data_ + header_length + 1, body_length_ - 1);
   }
 
-  std::string UnsubscribeTopic()
+  std::string UnsubscribeTopic() const
   {
       return std::string(data_ + header_length + 1, body_length_ - 1);
   }

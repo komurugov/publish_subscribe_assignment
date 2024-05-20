@@ -25,6 +25,12 @@ private:
     std::string string_;
 };
 
+void ProcessMessageFromServer(message const& msg)
+{
+    cout << "[Message] Topic: " << msg.ServerToClientTopic()
+         << " Data: " << msg.ServerToClientData() << std::endl;
+}
+
 class client
 {
 public:
@@ -97,7 +103,7 @@ private:
         {
           if (!ec)
           {
-            cout << "[Message] Topic: " << read_msg_.ServerToClientTopic() << " Data: " << read_msg_.ServerToClientData() << std::endl;
+            ProcessMessageFromServer(read_msg_);
             do_read_header();
           }
           else

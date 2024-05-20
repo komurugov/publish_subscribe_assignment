@@ -11,6 +11,7 @@
 using asio::ip::tcp;
 
 using std::cout;
+using std::cerr;
 
 //----------------------------------------------------------------------
 
@@ -87,6 +88,25 @@ public:
   }
 
 private:
+  void ProcessMessageFromClient(message const& msg)
+  {
+      switch (msg.Type())
+      {
+      case ClientMessageType::Subscribe:
+          cout << "A client tries to subscribe to the topic \"" << msg.SubscribeTopic() << "\"." << std::endl;
+          topics_.insert(msg.SubscribeTopic());
+          break;
+      case ClientMessageType::Unsubscribe:
+          cout << "A client tries to unsubscribe from the topic \"" << msg.UnsubscribeTopic() << "\"." << std::endl;
+          topics_.erase(msg.UnsubscribeTopic());
+          break;
+      case ClientMessageType::Publish:
+          cout << "A client sent data \"" << msg.PublishData() << "\" with topic \"" << msg.PublishTopic() << "\"." << std::endl;
+          room_.deliver(msg.PublishData(), msg.PublishTopic());
+          break;
+      }
+  }
+
   void do_read_header()
   {
     auto self(shared_from_this());
@@ -114,22 +134,7 @@ private:
         {
           if (!ec)
           {
-            switch (read_msg_.Type())
-            {
-            case ClientMessageType::Subscribe:
-                cout << "A client tries to subscribe to the topic \"" << read_msg_.SubscribeTopic() << "\"." << std::endl;
-                topics_.insert(read_msg_.SubscribeTopic());
-                break;
-            case ClientMessageType::Unsubscribe:
-                cout << "A client tries to unsubscribe from the topic \"" << read_msg_.UnsubscribeTopic() << "\"." << std::endl;
-                topics_.erase(read_msg_.UnsubscribeTopic());
-                break;
-            case ClientMessageType::Publish:
-                cout << "A client sent data \"" << read_msg_.PublishData() << "\" with topic \"" << read_msg_.PublishTopic() << "\"." << std::endl;
-                room_.deliver(read_msg_.PublishData(), read_msg_.PublishTopic());
-                break;
-            }
-
+            ProcessMessageFromClient(read_msg_);
             do_read_header();
           }
           else
@@ -191,7 +196,6 @@ private:
           {
             std::make_shared<session>(std::move(socket), room_)->start();
           }
-
           do_accept();
         });
   }
@@ -206,9 +210,9 @@ int main(int argc, char* argv[])
 {
   try
   {
-    if (argc < 2)
+    if (argc != 2)
     {
-      std::cerr << "Usage: server <port> [<port> ...]\n";
+      cerr << "Usage: server <port>" << std::endl;
       return 1;
     }
 

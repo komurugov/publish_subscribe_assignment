@@ -67,7 +67,7 @@ private:
     std::string data_;
 };
 
-TUserCommand* StringToUserCommand(std::string const& string)
+std::unique_ptr<TUserCommand> StringToUserCommand(std::string const& string)
 {
     bool constexpr DEBUG = false;   // "true" enables commands abbreviations
     std::regex re;
@@ -78,27 +78,27 @@ TUserCommand* StringToUserCommand(std::string const& string)
     {
         TPort port{ DEBUG ? "1999" : std::string{ match[1] } };
         std::string clientName{ DEBUG ? "default_client" : std::string{ match[2] } };
-        return new TUserCommandConnect(port, clientName);
+        return std::make_unique<TUserCommandConnect>(port, clientName);
     }
 
     re = DEBUG ? "^di$" : "^DISCONNECT$";
     if (std::regex_match(string, match, re))
     {
-        return new TUserCommandDisconnect;
+        return std::make_unique<TUserCommandDisconnect>();
     }
 
     re = DEBUG ? "^su ([^ ]+)$" : "^SUBSCRIBE ([^ ]+)$";    // topic name shouldn't contain spaces to be able to distinct it from data in the "publish" command
     if (std::regex_match(string, match, re))
     {
         std::string topic{ match[1] };
-        return new TUserCommandSubscribe(topic);
+        return std::make_unique<TUserCommandSubscribe>(topic);
     }
 
     re = DEBUG ? "^un ([^ ]+)$" : "^UNSUBSCRIBE ([^ ]+)$";  // topic name shouldn't contain spaces to be able to distinct it from data in the "publish" command
     if (std::regex_match(string, match, re))
     {
         std::string topic{ match[1] };
-        return new TUserCommandUnsubscribe(topic);
+        return std::make_unique<TUserCommandUnsubscribe>(topic);
     }
 
     re = DEBUG ? "^pu ([^ ]+) (.+)" : "^PUBLISH ([^ ]+) (.+)";
@@ -106,7 +106,7 @@ TUserCommand* StringToUserCommand(std::string const& string)
     {
         std::string topic{ match[1] };
         std::string data{ match[2] };
-        return new TUserCommandPublish(topic, data);
+        return std::make_unique<TUserCommandPublish>(topic, data);
     }
 
     throw std::logic_error("Cannot parse this command!");

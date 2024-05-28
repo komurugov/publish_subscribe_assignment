@@ -93,7 +93,7 @@ private:
   void ProcessMessageFromClient(TMessageWithSizePrefix const& msg)
   {
       std::unique_ptr<ClientMessageProcessor> processor{ CreateClientMessageProcessor(msg) };
-      if (processor.get() == nullptr)
+      if (!processor)
       {
           return;
       }

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 
 
 class TMessageWithSizePrefix
@@ -166,15 +167,15 @@ public:
     }
 };
 
-ClientMessageProcessor* CreateClientMessageProcessor(TMessageWithSizePrefix const& msg)
+std::unique_ptr<ClientMessageProcessor> CreateClientMessageProcessor(TMessageWithSizePrefix const& msg)
 {
     switch (msg.body()[0])
     {
-    case ClientMessageSubscribeProcessor::Signature():   return new ClientMessageSubscribeProcessor;
-    case ClientMessageUnsubscribeProcessor::Signature(): return new ClientMessageUnsubscribeProcessor;
-    case ClientMessagePublishProcessor::Signature():     return new ClientMessagePublishProcessor;
+    case ClientMessageSubscribeProcessor::Signature():   return std::make_unique<ClientMessageSubscribeProcessor>();
+    case ClientMessageUnsubscribeProcessor::Signature(): return std::make_unique<ClientMessageUnsubscribeProcessor>();
+    case ClientMessagePublishProcessor::Signature():     return std::make_unique<ClientMessagePublishProcessor>();
     }
-    return nullptr;
+    return std::make_unique<ClientMessageProcessor>();
 }
 
 
